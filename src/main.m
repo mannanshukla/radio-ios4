@@ -7,7 +7,7 @@
 - (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)opts {
     window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
     RDStationsViewController *v = [[[RDStationsViewController alloc] init] autorelease];
-    nav = [[UINavigationController alloc] initWithRootViewController:v]; nav.navigationBar.barStyle = UIBarStyleBlack;
+    nav = [[UINavigationController alloc] initWithRootViewController:v]; nav.navigationBar.tintColor = [UIColor colorWithRed:0.20 green:0.36 blue:0.59 alpha:1];
     [window addSubview:nav.view]; [window makeKeyAndVisible];
     [RDPlayer shared];
     return YES;

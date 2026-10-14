@@ -4,18 +4,13 @@
 #import <QuartzCore/QuartzCore.h>
 #import <MediaPlayer/MediaPlayer.h>
 
-static UIColor *amber(CGFloat a) { return [UIColor colorWithRed:1.0 green:0.72 blue:0.15 alpha:a]; }
-static UIFont *displayFont(CGFloat sz) { return [UIFont fontWithName:@"CourierNewPS-BoldMT" size:sz] ?: [UIFont boldSystemFontOfSize:sz]; }
+static UIColor *tint(CGFloat a) { return [UIColor colorWithRed:0.20 green:0.36 blue:0.59 alpha:a]; }   // the icon blue
 static UIImage *glyph(BOOL play) {   // drawn, not typed: the ▶ character renders as an emoji on iOS 5
     CGFloat sz = 28; UIGraphicsBeginImageContextWithOptions(CGSizeMake(sz, sz), NO, 0); CGContextRef c = UIGraphicsGetCurrentContext();
-    [amber(1) setFill];
+    [tint(1) setFill];
     if (play) { CGContextMoveToPoint(c, 6, 3); CGContextAddLineToPoint(c, 26, 14); CGContextAddLineToPoint(c, 6, 25); CGContextClosePath(c); CGContextFillPath(c); }
     else CGContextFillRect(c, CGRectMake(5, 5, 18, 18));
     UIImage *i = UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext(); return i;
-}
-static UIView *sectionHeader(NSString *text) {
-    UIView *v = [[[UIView alloc] initWithFrame:CGRectMake(0, 0, 320, 26)] autorelease]; v.backgroundColor = [UIColor colorWithWhite:0.08 alpha:1];
-    UILabel *l = [[[UILabel alloc] initWithFrame:CGRectMake(12, 0, 300, 26)] autorelease]; l.text = [text uppercaseString]; l.font = displayFont(13); l.textColor = amber(1); l.backgroundColor = [UIColor clearColor]; [v addSubview:l]; return v;
 }
 
 #pragma mark - Dial ruler
@@ -30,20 +25,20 @@ static UIView *sectionHeader(NSString *text) {
 - (double)frequencyForX:(CGFloat)x { return lo + x / ppm; }
 - (void)drawRect:(CGRect)rect {
     CGContextRef c = UIGraphicsGetCurrentContext(); CGFloat base = 44;
-    [[UIColor colorWithWhite:0.55 alpha:1] setStroke]; CGContextSetLineWidth(c, 1);
+    [[UIColor colorWithWhite:0.45 alpha:1] setStroke]; CGContextSetLineWidth(c, 1);
     for (double f = lo; f <= hi + 0.001; f += 0.1) {
         CGFloat x = floorf([self xForFrequency:f]) + 0.5; if (x < rect.origin.x - 2 || x > CGRectGetMaxX(rect) + 2) continue;
         int tenth = (int)floor(f * 10 + 0.5); CGFloat h = tenth % 10 == 0 ? 14 : tenth % 5 == 0 ? 9 : 5;
         CGContextMoveToPoint(c, x, base); CGContextAddLineToPoint(c, x, base - h); CGContextStrokePath(c);
-        if (tenth % 10 == 0) { NSString *t = [NSString stringWithFormat:@"%d", tenth / 10]; [[UIColor colorWithWhite:0.8 alpha:1] set]; [t drawAtPoint:CGPointMake(x - 8, base + 3) withFont:[UIFont boldSystemFontOfSize:10]]; }
+        if (tenth % 10 == 0) { NSString *t = [NSString stringWithFormat:@"%d", tenth / 10]; [[UIColor colorWithWhite:0.25 alpha:1] set]; [t drawAtPoint:CGPointMake(x - 8, base + 3) withFont:[UIFont boldSystemFontOfSize:10]]; }
     }
     CGContextMoveToPoint(c, rect.origin.x, base + 0.5); CGContextAddLineToPoint(c, CGRectGetMaxX(rect), base + 0.5); CGContextStrokePath(c);
-    [amber(1) setStroke]; CGContextSetLineWidth(c, 2); NSUInteger i = 0;
+    [tint(1) setStroke]; CGContextSetLineWidth(c, 2); NSUInteger i = 0;
     for (NSDictionary *s in stations) {
         CGFloat x = [self xForFrequency:[[s objectForKey:@"freq"] doubleValue]]; if (x < rect.origin.x - 60 || x > CGRectGetMaxX(rect) + 60) { i++; continue; }
         CGContextMoveToPoint(c, x, base); CGContextAddLineToPoint(c, x, base - 20); CGContextStrokePath(c);
         NSString *call = [[[s objectForKey:@"name"] componentsSeparatedByString:@" "] objectAtIndex:0]; UIFont *f = [UIFont boldSystemFontOfSize:9]; CGSize sz = [call sizeWithFont:f];
-        [amber(1) set]; [call drawAtPoint:CGPointMake(x - sz.width / 2, (i % 2 == 0) ? 2 : 12) withFont:f]; i++;   // alternate rows so neighbours don't collide
+        [tint(1) set]; [call drawAtPoint:CGPointMake(x - sz.width / 2, (i % 2 == 0) ? 2 : 12) withFont:f]; i++;   // alternate rows so neighbours don't collide
     }
 }
 @end
@@ -52,24 +47,24 @@ static UIView *sectionHeader(NSString *text) {
 @implementation RDTunerView
 - (id)initWithFrame:(CGRect)fr {
     if ((self = [super initWithFrame:fr])) {
-        self.backgroundColor = [UIColor blackColor];
-        UIView *glass = [[[UIView alloc] initWithFrame:CGRectMake(8, 8, fr.size.width - 16, fr.size.height - 12)] autorelease];
-        glass.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.06 alpha:1]; glass.layer.cornerRadius = 8; glass.layer.borderWidth = 1; glass.layer.borderColor = [UIColor colorWithWhite:0.22 alpha:1].CGColor; glass.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        self.backgroundColor = [UIColor clearColor];
+        UIView *glass = [[[UIView alloc] initWithFrame:CGRectMake(9, 10, fr.size.width - 18, fr.size.height - 14)] autorelease];
+        glass.backgroundColor = [UIColor whiteColor]; glass.layer.cornerRadius = 10; glass.layer.borderWidth = 1; glass.layer.borderColor = [UIColor colorWithWhite:0.67 alpha:1].CGColor; glass.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         [self addSubview:glass]; CGFloat w = glass.bounds.size.width;
-        freq = [[UILabel alloc] initWithFrame:CGRectMake(12, 8, w - 100, 34)]; freq.font = displayFont(30); freq.textColor = amber(1); freq.backgroundColor = [UIColor clearColor]; [glass addSubview:freq];
-        name = [[UILabel alloc] initWithFrame:CGRectMake(12, 42, w - 100, 18)]; name.font = [UIFont boldSystemFontOfSize:14]; name.textColor = [UIColor whiteColor]; name.backgroundColor = [UIColor clearColor]; [glass addSubview:name];
-        song = [[UILabel alloc] initWithFrame:CGRectMake(12, 60, w - 100, 32)]; song.font = [UIFont systemFontOfSize:12]; song.textColor = [UIColor colorWithWhite:0.8 alpha:1]; song.backgroundColor = [UIColor clearColor]; song.numberOfLines = 2; [glass addSubview:song];
-        button = [[UIButton buttonWithType:UIButtonTypeCustom] retain]; button.frame = CGRectMake(w - 80, 12, 66, 66); button.layer.cornerRadius = 33; button.layer.borderWidth = 2; button.layer.borderColor = amber(1).CGColor; button.backgroundColor = [UIColor colorWithWhite:0.12 alpha:1];
+        freq = [[UILabel alloc] initWithFrame:CGRectMake(12, 8, w - 100, 34)]; freq.font = [UIFont boldSystemFontOfSize:30]; freq.textColor = tint(1); freq.backgroundColor = [UIColor clearColor]; [glass addSubview:freq];
+        name = [[UILabel alloc] initWithFrame:CGRectMake(12, 42, w - 100, 18)]; name.font = [UIFont boldSystemFontOfSize:14]; name.textColor = [UIColor blackColor]; name.backgroundColor = [UIColor clearColor]; [glass addSubview:name];
+        song = [[UILabel alloc] initWithFrame:CGRectMake(12, 60, w - 100, 32)]; song.font = [UIFont systemFontOfSize:12]; song.textColor = [UIColor colorWithWhite:0.4 alpha:1]; song.backgroundColor = [UIColor clearColor]; song.numberOfLines = 2; [glass addSubview:song];
+        button = [[UIButton buttonWithType:UIButtonTypeCustom] retain]; button.frame = CGRectMake(w - 80, 12, 66, 66); button.layer.cornerRadius = 33; button.layer.borderWidth = 2; button.layer.borderColor = tint(1).CGColor; button.backgroundColor = [UIColor colorWithWhite:0.96 alpha:1];
         [button addTarget:[RDPlayer shared] action:@selector(toggle) forControlEvents:UIControlEventTouchUpInside]; [glass addSubview:button];
         spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite]; spinner.center = button.center; spinner.hidesWhenStopped = YES; [glass addSubview:spinner];
         // the dial
-        dialScroll = [[UIScrollView alloc] initWithFrame:CGRectMake(0, 96, w, 74)]; dialScroll.showsHorizontalScrollIndicator = NO; dialScroll.delegate = self; dialScroll.backgroundColor = [UIColor colorWithWhite:0.03 alpha:1]; dialScroll.decelerationRate = UIScrollViewDecelerationRateFast; dialScroll.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        dialScroll = [[UIScrollView alloc] initWithFrame:CGRectMake(0, 96, w, 74)]; dialScroll.showsHorizontalScrollIndicator = NO; dialScroll.delegate = self; dialScroll.backgroundColor = [UIColor colorWithWhite:0.97 alpha:1]; dialScroll.decelerationRate = UIScrollViewDecelerationRateFast; dialScroll.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         [glass addSubview:dialScroll];
         UIView *needle = [[[UIView alloc] initWithFrame:CGRectMake(w / 2 - 1, 96, 2, 74)] autorelease]; needle.backgroundColor = [UIColor colorWithRed:0.95 green:0.2 blue:0.15 alpha:1]; needle.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin; [glass addSubview:needle];
         UIView *cap = [[[UIView alloc] initWithFrame:CGRectMake(w / 2 - 5, 92, 10, 6)] autorelease]; cap.backgroundColor = needle.backgroundColor; cap.autoresizingMask = needle.autoresizingMask; [glass addSubview:cap];
-        bandSeg = [[UISegmentedControl alloc] initWithItems:[RDStations bands]]; bandSeg.frame = CGRectMake(12, 178, w - 24, 28); bandSeg.segmentedControlStyle = UISegmentedControlStyleBar; bandSeg.tintColor = [UIColor colorWithWhite:0.22 alpha:1]; bandSeg.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        bandSeg = [[UISegmentedControl alloc] initWithItems:[RDStations bands]]; bandSeg.frame = CGRectMake(12, 178, w - 24, 28); bandSeg.segmentedControlStyle = UISegmentedControlStyleBar; bandSeg.tintColor = tint(1); bandSeg.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         [bandSeg addTarget:self action:@selector(bandChanged) forControlEvents:UIControlEventValueChanged]; [glass addSubview:bandSeg];
-        status = [[UILabel alloc] initWithFrame:CGRectMake(12, 212, w - 24, 14)]; status.font = [UIFont systemFontOfSize:10]; status.textColor = [UIColor colorWithWhite:0.55 alpha:1]; status.backgroundColor = [UIColor clearColor]; status.textAlignment = UITextAlignmentCenter; [glass addSubview:status];
+        status = [[UILabel alloc] initWithFrame:CGRectMake(12, 212, w - 24, 14)]; status.font = [UIFont systemFontOfSize:10]; status.textColor = [UIColor colorWithWhite:0.45 alpha:1]; status.backgroundColor = [UIColor clearColor]; status.textAlignment = UITextAlignmentCenter; [glass addSubview:status];
         MPVolumeView *vol = [[[MPVolumeView alloc] initWithFrame:CGRectMake(12, glass.bounds.size.height - 32, w - 24, 24)] autorelease]; vol.autoresizingMask = UIViewAutoresizingFlexibleWidth; [glass addSubview:vol];
         NSString *saved = [[NSUserDefaults standardUserDefaults] stringForKey:@"rd_band"]; band = [([[RDStations bands] containsObject:saved] ? saved : @"Bay Area") copy];
         bandSeg.selectedSegmentIndex = [[RDStations bands] indexOfObject:band]; [self loadBand];
@@ -120,7 +115,7 @@ static UIView *sectionHeader(NSString *text) {
     RDPlayer *p = [RDPlayer shared]; NSDictionary *s = [p station]; RDState st = [p state];
     name.text = s ? [s objectForKey:@"name"] : @"Tune the dial or pick a station";
     song.text = st == RDFailed ? ([p error] ?: @"Couldn't connect.") : ([p nowPlaying] ?: (s ? [s objectForKey:@"sub"] : @""));
-    song.textColor = st == RDFailed ? [UIColor colorWithRed:1 green:0.5 blue:0.5 alpha:1] : [UIColor colorWithWhite:0.8 alpha:1];
+    song.textColor = st == RDFailed ? [UIColor colorWithRed:0.75 green:0.1 blue:0.1 alpha:1] : [UIColor colorWithWhite:0.4 alpha:1];
     NSString *sleep = [p sleepEnd] ? [NSString stringWithFormat:@"  ·  sleeps in %ld min", (long)ceil([[p sleepEnd] timeIntervalSinceNow] / 60)] : @"";
     status.text = [NSString stringWithFormat:@"%@%@", st == RDPlaying ? @"Live" : st == RDConnecting ? @"Connecting..." : @"Stopped", sleep];
     BOOL on = st == RDPlaying || st == RDConnecting;
@@ -133,7 +128,7 @@ static UIView *sectionHeader(NSString *text) {
 #pragma mark - Stations
 @implementation RDStationsViewController
 - (id)init {
-    if ((self = [super initWithStyle:UITableViewStylePlain])) {
+    if ((self = [super initWithStyle:UITableViewStyleGrouped])) {
         self.title = @"Radio";
         self.navigationItem.rightBarButtonItem = [[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(add)] autorelease];
         self.navigationItem.leftBarButtonItem = [[[UIBarButtonItem alloc] initWithTitle:@"Sleep" style:UIBarButtonItemStyleBordered target:self action:@selector(sleep)] autorelease];
@@ -144,7 +139,6 @@ static UIView *sectionHeader(NSString *text) {
 - (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; [tuner release]; [super dealloc]; }
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.tableView.backgroundColor = [UIColor blackColor]; self.tableView.separatorColor = [UIColor colorWithWhite:0.18 alpha:1];
     tuner = [[RDTunerView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 268)]; tuner.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     self.tableView.tableHeaderView = tuner;
     [NSTimer scheduledTimerWithTimeInterval:30 target:tuner selector:@selector(refresh) userInfo:nil repeats:YES];
@@ -173,10 +167,10 @@ static UIView *sectionHeader(NSString *text) {
     NSDictionary *s = [all objectAtIndex:i]; [[RDPlayer shared] play:s]; [tuner showStation:s animated:YES];
 }
 - (void)playerChanged { [tuner refresh]; [self.tableView reloadData]; }
-- (void)add { RDAddViewController *v = [[RDAddViewController alloc] init]; UINavigationController *n = [[UINavigationController alloc] initWithRootViewController:v]; n.navigationBar.barStyle = UIBarStyleBlack; [self presentModalViewController:n animated:YES]; [n release]; [v release]; }
+- (void)add { RDAddViewController *v = [[RDAddViewController alloc] init]; UINavigationController *n = [[UINavigationController alloc] initWithRootViewController:v]; n.navigationBar.tintColor = self.navigationController.navigationBar.tintColor; [self presentModalViewController:n animated:YES]; [n release]; [v release]; }
 - (void)sleep {
     UIActionSheet *a = [[UIActionSheet alloc] initWithTitle:@"Stop playing in" delegate:self cancelButtonTitle:@"Cancel" destructiveButtonTitle:[[RDPlayer shared] sleepEnd] ? @"Turn off sleep timer" : nil otherButtonTitles:@"15 minutes", @"30 minutes", @"1 hour", @"2 hours", nil];
-    a.actionSheetStyle = UIActionSheetStyleBlackOpaque; [a showInView:self.view]; [a release];
+    [a showInView:self.view]; [a release];
 }
 - (void)actionSheet:(UIActionSheet *)a clickedButtonAtIndex:(NSInteger)i {
     if (i == a.cancelButtonIndex) return;
@@ -187,19 +181,17 @@ static UIView *sectionHeader(NSString *text) {
 - (NSString *)groupAt:(NSInteger)s { return [[RDStations groups] objectAtIndex:s]; }
 - (BOOL)isCustom:(NSInteger)s { return s == (NSInteger)[[RDStations groups] count] - 1; }
 - (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)s { NSInteger n = [[RDStations stationsInGroup:[self groupAt:s]] count]; return [self isCustom:s] ? n + 1 : n; }
-- (UIView *)tableView:(UITableView *)tv viewForHeaderInSection:(NSInteger)s { return sectionHeader([self groupAt:s]); }
-- (CGFloat)tableView:(UITableView *)tv heightForHeaderInSection:(NSInteger)s { return 26; }
+- (NSString *)tableView:(UITableView *)tv titleForHeaderInSection:(NSInteger)s { return [self groupAt:s]; }
+- (NSString *)tableView:(UITableView *)tv titleForFooterInSection:(NSInteger)s { return [self isCustom:s] ? @"Any Icecast or Shoutcast MP3 or AAC stream works. Paste the address that ends in .mp3 or the station's stream link." : nil; }
 - (CGFloat)tableView:(UITableView *)tv heightForRowAtIndexPath:(NSIndexPath *)ip { return 50; }
-- (void)tableView:(UITableView *)tv willDisplayCell:(UITableViewCell *)c forRowAtIndexPath:(NSIndexPath *)ip { c.backgroundColor = [UIColor blackColor]; }
 - (UITableViewCell *)tableView:(UITableView *)tv cellForRowAtIndexPath:(NSIndexPath *)ip {
     NSArray *list = [RDStations stationsInGroup:[self groupAt:ip.section]];
     UITableViewCell *c = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil] autorelease];
-    c.textLabel.textColor = [UIColor whiteColor]; c.textLabel.font = [UIFont boldSystemFontOfSize:17]; c.detailTextLabel.textColor = [UIColor colorWithWhite:0.6 alpha:1];
-    UIView *sel = [[[UIView alloc] init] autorelease]; sel.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1]; c.selectedBackgroundView = sel;
-    if (ip.row >= (NSInteger)[list count]) { c.textLabel.text = @"Add a station..."; c.textLabel.textColor = amber(1); c.detailTextLabel.text = @"Any Icecast or Shoutcast MP3 or AAC address"; return c; }
+    c.detailTextLabel.textColor = [UIColor grayColor];
+    if (ip.row >= (NSInteger)[list count]) { c.textLabel.text = @"Add a station..."; c.textLabel.textColor = tint(1); return c; }
     NSDictionary *s = [list objectAtIndex:ip.row]; c.textLabel.text = [s objectForKey:@"name"]; c.detailTextLabel.text = [s objectForKey:@"sub"];
     BOOL cur = [[[[RDPlayer shared] station] objectForKey:@"url"] isEqualToString:[s objectForKey:@"url"]];
-    c.accessoryType = cur ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone; c.textLabel.textColor = cur ? amber(1) : [UIColor whiteColor];
+    c.accessoryType = cur ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone; c.textLabel.textColor = cur ? tint(1) : [UIColor blackColor];
     return c;
 }
 - (void)tableView:(UITableView *)tv didSelectRowAtIndexPath:(NSIndexPath *)ip {
