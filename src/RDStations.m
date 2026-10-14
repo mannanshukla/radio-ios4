@@ -1,5 +1,15 @@
 #import "RDStations.h"
-static NSDictionary *st(NSString *name, NSString *sub, NSString *url, NSString *group) { return [NSDictionary dictionaryWithObjectsAndKeys:name, @"name", sub, @"sub", url, @"url", group, @"group", nil]; }
+static NSDictionary *st(NSString *name, NSString *sub, NSString *url, NSString *group) {
+    // FM frequency is the number in the name; band is the region whose dial it sits on
+    double f = 0; NSScanner *sc = [NSScanner scannerWithString:name]; [sc scanUpToCharactersFromSet:[NSCharacterSet decimalDigitCharacterSet] intoString:NULL]; [sc scanDouble:&f];
+    NSString *band = @"";
+    if ([group isEqualToString:@"Bay Area"] || [sub rangeOfString:@"Berkeley"].location != NSNotFound || [sub rangeOfString:@"Stanford"].location != NSNotFound || [sub rangeOfString:@"Foothill"].location != NSNotFound || [sub rangeOfString:@"San Jose"].location != NSNotFound || [sub rangeOfString:@"Santa Clara"].location != NSNotFound) band = @"Bay Area";
+    else if ([group isEqualToString:@"College radio, West"] || [name hasPrefix:@"KCRW 8"]) band = @"California";
+    else if ([group isEqualToString:@"College radio, East"] || [name hasPrefix:@"WFMU"]) band = @"East Coast";
+    else if ([name hasPrefix:@"KEXP"] || [name hasPrefix:@"KBOO"]) band = @"Northwest";
+    if (f < 87 || f > 108.5) { band = @""; f = 0; }
+    return [NSDictionary dictionaryWithObjectsAndKeys:name, @"name", sub, @"sub", url, @"url", group, @"group", band, @"band", [NSNumber numberWithDouble:f], @"freq", nil];
+}
 static NSArray *presets(void) {
     static NSArray *p = nil;
     if (!p) p = [[NSArray alloc] initWithObjects:
@@ -47,6 +57,12 @@ static NSArray *presets(void) {
     return p;
 }
 @implementation RDStations
++ (NSArray *)bands { return [NSArray arrayWithObjects:@"Bay Area", @"California", @"East Coast", @"Northwest", nil]; }
++ (NSArray *)stationsInBand:(NSString *)b {
+    NSMutableArray *a = [NSMutableArray array]; for (NSDictionary *s in presets()) if ([[s objectForKey:@"band"] isEqualToString:b]) [a addObject:s];
+    [a sortUsingComparator:^NSComparisonResult(id x, id y) { double p = [[x objectForKey:@"freq"] doubleValue], q = [[y objectForKey:@"freq"] doubleValue]; return p < q ? NSOrderedAscending : p > q ? NSOrderedDescending : NSOrderedSame; }];
+    return a;
+}
 + (NSArray *)groups { return [NSArray arrayWithObjects:@"Bay Area", @"College radio, West", @"College radio, East", @"SomaFM, San Francisco", @"Elsewhere", @"Your stations", nil]; }
 + (NSArray *)stationsInGroup:(NSString *)g {
     if ([g isEqualToString:@"Your stations"]) return [self custom];

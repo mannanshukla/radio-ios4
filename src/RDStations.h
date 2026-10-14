@@ -3,6 +3,8 @@
 // A station is {name, sub, url, group}.
 @interface RDStations : NSObject
 + (NSArray *)groups;                 // ordered group titles
++ (NSArray *)bands;                  // dial regions
++ (NSArray *)stationsInBand:(NSString *)b;   // sorted by frequency; a station is {name, sub, url, group, band, freq}
 + (NSArray *)stationsInGroup:(NSString *)g;
 + (NSArray *)custom; + (void)setCustom:(NSArray *)a;
 + (NSArray *)all;
