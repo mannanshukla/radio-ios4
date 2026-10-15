@@ -4,6 +4,7 @@
 - (id)initWithStations:(NSArray *)s pointsPerMHz:(CGFloat)p;
 - (CGFloat)xForFrequency:(double)f; - (double)frequencyForX:(CGFloat)x;
 @end
+@interface RDMetalView : UIView { CGRect dialWindow; } @property (nonatomic, assign) CGRect dialWindow; @end   // brushed-metal face with a recessed glass window
 @interface RDTunerView : UIView <UIScrollViewDelegate> { UILabel *freq, *name, *song, *status; UIButton *button; UIActivityIndicatorView *spinner; UISegmentedControl *bandSeg; UIScrollView *dialScroll; RDDialView *dial; NSString *band; BOOL settling; }
 - (void)refresh;
 - (void)showStation:(NSDictionary *)s animated:(BOOL)a;   // move the dial to a station (switches band if needed)

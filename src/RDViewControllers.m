@@ -13,6 +13,57 @@ static UIImage *glyph(BOOL play) {   // drawn, not typed: the ▶ character rend
     UIImage *i = UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext(); return i;
 }
 
+
+#pragma mark - Brushed metal face
+static UIImage *knobImage(CGFloat size) {   // machined aluminium button
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0); CGContextRef c = UIGraphicsGetCurrentContext();
+    CGRect r = CGRectInset(CGRectMake(0, 0, size, size), 3, 3); CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB(); CGFloat locs[2] = {0, 1};
+    CGContextSaveGState(c); CGContextSetShadowWithColor(c, CGSizeMake(0, 2), 3, [UIColor colorWithWhite:0 alpha:0.5].CGColor); [[UIColor colorWithWhite:0.5 alpha:1] set]; CGContextFillEllipseInRect(c, r); CGContextRestoreGState(c);
+    CGContextSaveGState(c); CGContextAddEllipseInRect(c, r); CGContextClip(c);
+    CGGradientRef g = CGGradientCreateWithColors(cs, (CFArrayRef)[NSArray arrayWithObjects:(id)[UIColor colorWithWhite:0.93 alpha:1].CGColor, (id)[UIColor colorWithWhite:0.62 alpha:1].CGColor, nil], locs);
+    CGContextDrawLinearGradient(c, g, CGPointMake(0, r.origin.y), CGPointMake(0, CGRectGetMaxY(r)), 0); CGGradientRelease(g);
+    for (CGFloat y = r.origin.y; y < CGRectGetMaxY(r); y += 2) { [[UIColor colorWithWhite:(int)y % 3 ? 1 : 0 alpha:0.07] set]; CGContextFillRect(c, CGRectMake(r.origin.x, y, r.size.width, 1)); }
+    CGContextRestoreGState(c);
+    [[UIColor colorWithWhite:0.35 alpha:1] set]; CGContextSetLineWidth(c, 1); CGContextStrokeEllipseInRect(c, r);
+    [[UIColor colorWithWhite:1 alpha:0.7] set]; CGContextStrokeEllipseInRect(c, CGRectInset(r, 1.5, 1.5));
+    [[UIColor colorWithWhite:0.45 alpha:1] set]; CGContextStrokeEllipseInRect(c, CGRectInset(r, 9, 9));   // the inner ring of a real knob
+    CGColorSpaceRelease(cs); UIImage *i = UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext(); return i;
+}
+@implementation RDMetalView
+@synthesize dialWindow;
+- (id)initWithFrame:(CGRect)f { if ((self = [super initWithFrame:f])) { self.backgroundColor = [UIColor clearColor]; self.opaque = NO; self.contentMode = UIViewContentModeRedraw; } return self; }
+- (void)drawRect:(CGRect)rect {
+    CGContextRef c = UIGraphicsGetCurrentContext(); CGRect b = CGRectInset(self.bounds, 0.5, 0.5);
+    UIBezierPath *plate = [UIBezierPath bezierPathWithRoundedRect:b cornerRadius:10];
+    CGContextSaveGState(c); CGContextSetShadowWithColor(c, CGSizeMake(0, 2), 3, [UIColor colorWithWhite:0 alpha:0.45].CGColor); [[UIColor colorWithWhite:0.6 alpha:1] set]; [plate fill]; CGContextRestoreGState(c);
+    CGContextSaveGState(c); [plate addClip];
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB(); CGFloat locs[3] = {0, 0.5, 1};
+    CGGradientRef g = CGGradientCreateWithColors(cs, (CFArrayRef)[NSArray arrayWithObjects:(id)[UIColor colorWithWhite:0.90 alpha:1].CGColor, (id)[UIColor colorWithWhite:0.78 alpha:1].CGColor, (id)[UIColor colorWithWhite:0.86 alpha:1].CGColor, nil], locs);
+    CGContextDrawLinearGradient(c, g, CGPointMake(0, 0), CGPointMake(0, b.size.height), 0); CGGradientRelease(g);
+    srand(3); for (CGFloat y = 0; y < b.size.height; y += 1) { [[UIColor colorWithWhite:rand() % 2 ? 1 : 0 alpha:(rand() % 100) / 100.0 * 0.09] set]; CGFloat x0 = rand() % 40, len = b.size.width - rand() % 60; CGContextFillRect(c, CGRectMake(x0, y, len, 1)); }   // the brushing
+    // recessed glass window for the dial
+    CGRect w = dialWindow; UIBezierPath *wp = [UIBezierPath bezierPathWithRoundedRect:w cornerRadius:6];
+    [[UIColor colorWithRed:0.10 green:0.11 blue:0.13 alpha:1] set]; [wp fill];
+    CGContextSaveGState(c); [wp addClip];
+    CGGradientRef gl = CGGradientCreateWithColors(cs, (CFArrayRef)[NSArray arrayWithObjects:(id)[UIColor colorWithRed:0.30 green:0.36 blue:0.48 alpha:1].CGColor, (id)[UIColor colorWithRed:0.08 green:0.09 blue:0.12 alpha:1].CGColor, nil], (CGFloat[]){0, 1});
+    CGContextDrawRadialGradient(c, gl, CGPointMake(CGRectGetMidX(w), w.origin.y + 10), 0, CGPointMake(CGRectGetMidX(w), w.origin.y + 10), w.size.width * 0.75, kCGGradientDrawsAfterEndLocation); CGGradientRelease(gl);   // backlight
+    CGContextSetShadowWithColor(c, CGSizeMake(0, 3), 6, [UIColor colorWithWhite:0 alpha:0.9].CGColor); [[UIColor blackColor] set]; CGContextSetLineWidth(c, 4); CGContextAddPath(c, [UIBezierPath bezierPathWithRoundedRect:CGRectInset(w, -4, -4) cornerRadius:8].CGPath); CGContextStrokePath(c);   // inner shadow
+    CGContextRestoreGState(c);
+    [[UIColor colorWithWhite:1 alpha:0.5] set]; CGContextSetLineWidth(c, 1); CGContextAddPath(c, [UIBezierPath bezierPathWithRoundedRect:CGRectOffset(w, 0, 1) cornerRadius:6].CGPath); CGContextStrokePath(c);   // lip highlight
+    [[UIColor colorWithWhite:0.3 alpha:1] set]; [wp stroke];
+    // four screws
+    for (int i = 0; i < 4; i++) {
+        CGPoint p = CGPointMake(i % 2 ? CGRectGetMaxX(b) - 12 : b.origin.x + 12, i < 2 ? b.origin.y + 12 : CGRectGetMaxY(b) - 12); CGRect sr = CGRectMake(p.x - 4.5, p.y - 4.5, 9, 9);
+        CGContextSaveGState(c); CGContextSetShadowWithColor(c, CGSizeMake(0, 1), 1, [UIColor colorWithWhite:0 alpha:0.5].CGColor); [[UIColor colorWithWhite:0.55 alpha:1] set]; CGContextFillEllipseInRect(c, sr); CGContextRestoreGState(c);
+        [[UIColor colorWithWhite:0.85 alpha:1] set]; CGContextFillEllipseInRect(c, CGRectInset(sr, 1, 1));
+        [[UIColor colorWithWhite:0.35 alpha:1] set]; CGContextSetLineWidth(c, 1.2); CGContextMoveToPoint(c, p.x - 3, p.y - 2 + (i % 2) * 4); CGContextAddLineToPoint(c, p.x + 3, p.y + 2 - (i % 2) * 4); CGContextStrokePath(c);
+    }
+    CGContextRestoreGState(c); CGColorSpaceRelease(cs);
+    [[UIColor colorWithWhite:0.45 alpha:1] set]; plate.lineWidth = 1; [plate stroke];
+    [[UIColor colorWithWhite:1 alpha:0.8] set]; CGContextSetLineWidth(c, 1); CGContextMoveToPoint(c, b.origin.x + 10, b.origin.y + 1.5); CGContextAddLineToPoint(c, CGRectGetMaxX(b) - 10, b.origin.y + 1.5); CGContextStrokePath(c);
+}
+@end
+
 #pragma mark - Dial ruler
 @implementation RDDialView
 - (id)initWithStations:(NSArray *)s pointsPerMHz:(CGFloat)p {
@@ -25,20 +76,20 @@ static UIImage *glyph(BOOL play) {   // drawn, not typed: the ▶ character rend
 - (double)frequencyForX:(CGFloat)x { return lo + x / ppm; }
 - (void)drawRect:(CGRect)rect {
     CGContextRef c = UIGraphicsGetCurrentContext(); CGFloat base = 44;
-    [[UIColor colorWithWhite:0.45 alpha:1] setStroke]; CGContextSetLineWidth(c, 1);
+    [[UIColor colorWithWhite:0.80 alpha:0.9] setStroke]; CGContextSetLineWidth(c, 1);
     for (double f = lo; f <= hi + 0.001; f += 0.1) {
         CGFloat x = floorf([self xForFrequency:f]) + 0.5; if (x < rect.origin.x - 2 || x > CGRectGetMaxX(rect) + 2) continue;
         int tenth = (int)floor(f * 10 + 0.5); CGFloat h = tenth % 10 == 0 ? 14 : tenth % 5 == 0 ? 9 : 5;
         CGContextMoveToPoint(c, x, base); CGContextAddLineToPoint(c, x, base - h); CGContextStrokePath(c);
-        if (tenth % 10 == 0) { NSString *t = [NSString stringWithFormat:@"%d", tenth / 10]; [[UIColor colorWithWhite:0.25 alpha:1] set]; [t drawAtPoint:CGPointMake(x - 8, base + 3) withFont:[UIFont boldSystemFontOfSize:10]]; }
+        if (tenth % 10 == 0) { NSString *t = [NSString stringWithFormat:@"%d", tenth / 10]; [[UIColor colorWithWhite:0.92 alpha:1] set]; [t drawAtPoint:CGPointMake(x - 8, base + 3) withFont:[UIFont boldSystemFontOfSize:10]]; }
     }
     CGContextMoveToPoint(c, rect.origin.x, base + 0.5); CGContextAddLineToPoint(c, CGRectGetMaxX(rect), base + 0.5); CGContextStrokePath(c);
-    [tint(1) setStroke]; CGContextSetLineWidth(c, 2); NSUInteger i = 0;
+    UIColor *mark = [UIColor colorWithRed:0.55 green:0.75 blue:1.0 alpha:1]; [mark setStroke]; CGContextSetLineWidth(c, 2); NSUInteger i = 0;
     for (NSDictionary *s in stations) {
         CGFloat x = [self xForFrequency:[[s objectForKey:@"freq"] doubleValue]]; if (x < rect.origin.x - 60 || x > CGRectGetMaxX(rect) + 60) { i++; continue; }
         CGContextMoveToPoint(c, x, base); CGContextAddLineToPoint(c, x, base - 20); CGContextStrokePath(c);
         NSString *call = [[[s objectForKey:@"name"] componentsSeparatedByString:@" "] objectAtIndex:0]; UIFont *f = [UIFont boldSystemFontOfSize:9]; CGSize sz = [call sizeWithFont:f];
-        [tint(1) set]; [call drawAtPoint:CGPointMake(x - sz.width / 2, (i % 2 == 0) ? 2 : 12) withFont:f]; i++;   // alternate rows so neighbours don't collide
+        [mark set]; [call drawAtPoint:CGPointMake(x - sz.width / 2, (i % 2 == 0) ? 2 : 12) withFont:f]; i++;   // alternate rows so neighbours don't collide
     }
 }
 @end
@@ -48,23 +99,23 @@ static UIImage *glyph(BOOL play) {   // drawn, not typed: the ▶ character rend
 - (id)initWithFrame:(CGRect)fr {
     if ((self = [super initWithFrame:fr])) {
         self.backgroundColor = [UIColor clearColor];
-        UIView *glass = [[[UIView alloc] initWithFrame:CGRectMake(9, 10, fr.size.width - 18, fr.size.height - 14)] autorelease];
-        glass.backgroundColor = [UIColor whiteColor]; glass.layer.cornerRadius = 10; glass.layer.borderWidth = 1; glass.layer.borderColor = [UIColor colorWithWhite:0.67 alpha:1].CGColor; glass.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        RDMetalView *glass = [[[RDMetalView alloc] initWithFrame:CGRectMake(9, 10, fr.size.width - 18, fr.size.height - 14)] autorelease]; glass.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        glass.dialWindow = CGRectMake(8, 96, fr.size.width - 18 - 16, 74);
         [self addSubview:glass]; CGFloat w = glass.bounds.size.width;
-        freq = [[UILabel alloc] initWithFrame:CGRectMake(12, 8, w - 100, 34)]; freq.font = [UIFont boldSystemFontOfSize:30]; freq.textColor = tint(1); freq.backgroundColor = [UIColor clearColor]; [glass addSubview:freq];
-        name = [[UILabel alloc] initWithFrame:CGRectMake(12, 42, w - 100, 18)]; name.font = [UIFont boldSystemFontOfSize:14]; name.textColor = [UIColor blackColor]; name.backgroundColor = [UIColor clearColor]; [glass addSubview:name];
-        song = [[UILabel alloc] initWithFrame:CGRectMake(12, 60, w - 100, 32)]; song.font = [UIFont systemFontOfSize:12]; song.textColor = [UIColor colorWithWhite:0.4 alpha:1]; song.backgroundColor = [UIColor clearColor]; song.numberOfLines = 2; [glass addSubview:song];
-        button = [[UIButton buttonWithType:UIButtonTypeCustom] retain]; button.frame = CGRectMake(w - 80, 12, 66, 66); button.layer.cornerRadius = 33; button.layer.borderWidth = 2; button.layer.borderColor = tint(1).CGColor; button.backgroundColor = [UIColor colorWithWhite:0.96 alpha:1];
+        freq = [[UILabel alloc] initWithFrame:CGRectMake(12, 8, w - 100, 34)]; freq.font = [UIFont boldSystemFontOfSize:30]; freq.textColor = [UIColor colorWithWhite:0.18 alpha:1]; freq.shadowColor = [UIColor colorWithWhite:1 alpha:0.8]; freq.shadowOffset = CGSizeMake(0, 1); freq.backgroundColor = [UIColor clearColor]; [glass addSubview:freq];
+        name = [[UILabel alloc] initWithFrame:CGRectMake(12, 42, w - 100, 18)]; name.font = [UIFont boldSystemFontOfSize:14]; name.textColor = [UIColor colorWithWhite:0.15 alpha:1]; name.shadowColor = [UIColor colorWithWhite:1 alpha:0.7]; name.shadowOffset = CGSizeMake(0, 1); name.backgroundColor = [UIColor clearColor]; [glass addSubview:name];
+        song = [[UILabel alloc] initWithFrame:CGRectMake(12, 60, w - 100, 32)]; song.font = [UIFont systemFontOfSize:12]; song.textColor = [UIColor colorWithWhite:0.32 alpha:1]; song.shadowColor = [UIColor colorWithWhite:1 alpha:0.7]; song.shadowOffset = CGSizeMake(0, 1); song.backgroundColor = [UIColor clearColor]; song.numberOfLines = 2; [glass addSubview:song];
+        button = [[UIButton buttonWithType:UIButtonTypeCustom] retain]; button.frame = CGRectMake(w - 80, 12, 66, 66); [button setBackgroundImage:knobImage(66) forState:UIControlStateNormal];
         [button addTarget:[RDPlayer shared] action:@selector(toggle) forControlEvents:UIControlEventTouchUpInside]; [glass addSubview:button];
         spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite]; spinner.center = button.center; spinner.hidesWhenStopped = YES; [glass addSubview:spinner];
         // the dial
-        dialScroll = [[UIScrollView alloc] initWithFrame:CGRectMake(0, 96, w, 74)]; dialScroll.showsHorizontalScrollIndicator = NO; dialScroll.delegate = self; dialScroll.backgroundColor = [UIColor colorWithWhite:0.97 alpha:1]; dialScroll.decelerationRate = UIScrollViewDecelerationRateFast; dialScroll.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        dialScroll = [[UIScrollView alloc] initWithFrame:CGRectMake(8, 96, w - 16, 74)]; dialScroll.showsHorizontalScrollIndicator = NO; dialScroll.delegate = self; dialScroll.backgroundColor = [UIColor clearColor]; dialScroll.decelerationRate = UIScrollViewDecelerationRateFast; dialScroll.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         [glass addSubview:dialScroll];
         UIView *needle = [[[UIView alloc] initWithFrame:CGRectMake(w / 2 - 1, 96, 2, 74)] autorelease]; needle.backgroundColor = [UIColor colorWithRed:0.95 green:0.2 blue:0.15 alpha:1]; needle.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin; [glass addSubview:needle];
         UIView *cap = [[[UIView alloc] initWithFrame:CGRectMake(w / 2 - 5, 92, 10, 6)] autorelease]; cap.backgroundColor = needle.backgroundColor; cap.autoresizingMask = needle.autoresizingMask; [glass addSubview:cap];
         bandSeg = [[UISegmentedControl alloc] initWithItems:[RDStations bands]]; bandSeg.frame = CGRectMake(12, 178, w - 24, 28); bandSeg.segmentedControlStyle = UISegmentedControlStyleBar; bandSeg.tintColor = tint(1); bandSeg.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         [bandSeg addTarget:self action:@selector(bandChanged) forControlEvents:UIControlEventValueChanged]; [glass addSubview:bandSeg];
-        status = [[UILabel alloc] initWithFrame:CGRectMake(12, 212, w - 24, 14)]; status.font = [UIFont systemFontOfSize:10]; status.textColor = [UIColor colorWithWhite:0.45 alpha:1]; status.backgroundColor = [UIColor clearColor]; status.textAlignment = UITextAlignmentCenter; [glass addSubview:status];
+        status = [[UILabel alloc] initWithFrame:CGRectMake(12, 212, w - 24, 14)]; status.font = [UIFont boldSystemFontOfSize:10]; status.textColor = [UIColor colorWithWhite:0.35 alpha:1]; status.shadowColor = [UIColor colorWithWhite:1 alpha:0.7]; status.shadowOffset = CGSizeMake(0, 1); status.backgroundColor = [UIColor clearColor]; status.textAlignment = UITextAlignmentCenter; [glass addSubview:status];
         MPVolumeView *vol = [[[MPVolumeView alloc] initWithFrame:CGRectMake(12, glass.bounds.size.height - 32, w - 24, 24)] autorelease]; vol.autoresizingMask = UIViewAutoresizingFlexibleWidth; [glass addSubview:vol];
         NSString *saved = [[NSUserDefaults standardUserDefaults] stringForKey:@"rd_band"]; band = [([[RDStations bands] containsObject:saved] ? saved : @"Bay Area") copy];
         bandSeg.selectedSegmentIndex = [[RDStations bands] indexOfObject:band]; [self loadBand];
