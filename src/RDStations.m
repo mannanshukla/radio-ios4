@@ -72,5 +72,6 @@ static NSArray *presets(void) {
 + (void)setCustom:(NSArray *)a { [[NSUserDefaults standardUserDefaults] setObject:a forKey:@"rd_custom"]; [[NSUserDefaults standardUserDefaults] synchronize]; }
 + (NSArray *)all { return [presets() arrayByAddingObjectsFromArray:[self custom]]; }
 + (NSString *)lastURL { return [[NSUserDefaults standardUserDefaults] stringForKey:@"rd_last"]; }
++ (NSDictionary *)lastStation { NSString *last = [self lastURL]; for (NSDictionary *d in [self all]) if ([[d objectForKey:@"url"] isEqualToString:last]) return d; return nil; }
 + (void)setLastURL:(NSString *)u { [[NSUserDefaults standardUserDefaults] setObject:u forKey:@"rd_last"]; [[NSUserDefaults standardUserDefaults] synchronize]; }
 @end

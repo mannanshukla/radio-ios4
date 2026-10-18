@@ -9,4 +9,5 @@
 + (NSArray *)custom; + (void)setCustom:(NSArray *)a;
 + (NSArray *)all;
 + (NSString *)lastURL; + (void)setLastURL:(NSString *)u;
++ (NSDictionary *)lastStation;       // the station behind lastURL, if it still exists
 @end

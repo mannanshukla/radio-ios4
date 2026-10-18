@@ -1,6 +1,6 @@
 #import <UIKit/UIKit.h>
 // The tuner: frequency readout, a draggable FM dial with the band's stations at their real frequencies, play/stop, volume.
-@interface RDDialView : UIView { NSArray *stations; double lo, hi; CGFloat ppm; }
+@interface RDDialView : UIView { NSArray *stations, *labels; double lo, hi; CGFloat ppm; }
 - (id)initWithStations:(NSArray *)s pointsPerMHz:(CGFloat)p;
 - (CGFloat)xForFrequency:(double)f; - (double)frequencyForX:(CGFloat)x;
 @end

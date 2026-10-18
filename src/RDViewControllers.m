@@ -65,13 +65,24 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
 @end
 
 #pragma mark - Dial ruler
+static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"] componentsSeparatedByString:@" "] objectAtIndex:0]; }
 @implementation RDDialView
 - (id)initWithStations:(NSArray *)s pointsPerMHz:(CGFloat)p {
     lo = 87.5; hi = 108.1; ppm = p; stations = [s retain];
-    if ((self = [super initWithFrame:CGRectMake(0, 0, (hi - lo) * ppm, 74)])) { self.backgroundColor = [UIColor clearColor]; self.opaque = NO; }
+    if ((self = [super initWithFrame:CGRectMake(0, 0, (hi - lo) * ppm, 74)])) { self.backgroundColor = [UIColor clearColor]; self.opaque = NO; [self placeLabels]; }
     return self;
 }
-- (void)dealloc { [stations release]; [super dealloc]; }
+- (void)dealloc { [stations release]; [labels release]; [super dealloc]; }
+- (void)placeLabels {   // call letters sit just above their mark, or on the upper row if that's taken; when both are taken the label slides right instead of overprinting
+    NSMutableArray *a = [NSMutableArray array]; CGFloat end[2] = {-1e9, -1e9}, rowY[2] = {12, 2}; UIFont *f = [UIFont boldSystemFontOfSize:9];
+    for (NSDictionary *s in stations) {
+        CGSize sz = [callLetters(s) sizeWithFont:f]; CGFloat x = [self xForFrequency:[[s objectForKey:@"freq"] doubleValue]] - sz.width / 2;
+        int row = x >= end[0] + 4 ? 0 : x >= end[1] + 4 ? 1 : end[0] <= end[1] ? 0 : 1;
+        x = MAX(x, end[row] + 4); end[row] = x + sz.width;
+        [a addObject:[NSValue valueWithCGRect:CGRectMake(x, rowY[row], sz.width, sz.height)]];
+    }
+    labels = [a copy];
+}
 - (CGFloat)xForFrequency:(double)f { return (f - lo) * ppm; }
 - (double)frequencyForX:(CGFloat)x { return lo + x / ppm; }
 - (void)drawRect:(CGRect)rect {
@@ -81,16 +92,29 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
         CGFloat x = floorf([self xForFrequency:f]) + 0.5; if (x < rect.origin.x - 2 || x > CGRectGetMaxX(rect) + 2) continue;
         int tenth = (int)floor(f * 10 + 0.5); CGFloat h = tenth % 10 == 0 ? 14 : tenth % 5 == 0 ? 9 : 5;
         CGContextMoveToPoint(c, x, base); CGContextAddLineToPoint(c, x, base - h); CGContextStrokePath(c);
-        if (tenth % 10 == 0) { NSString *t = [NSString stringWithFormat:@"%d", tenth / 10]; [[UIColor colorWithWhite:0.92 alpha:1] set]; [t drawAtPoint:CGPointMake(x - 8, base + 3) withFont:[UIFont boldSystemFontOfSize:10]]; }
+        if (tenth % 10 == 0) { NSString *t = [NSString stringWithFormat:@"%d", tenth / 10]; UIFont *nf = [UIFont boldSystemFontOfSize:10]; [[UIColor colorWithWhite:0.92 alpha:1] set]; [t drawAtPoint:CGPointMake(x - [t sizeWithFont:nf].width / 2, base + 3) withFont:nf]; }
     }
     CGContextMoveToPoint(c, rect.origin.x, base + 0.5); CGContextAddLineToPoint(c, CGRectGetMaxX(rect), base + 0.5); CGContextStrokePath(c);
     UIColor *mark = [UIColor colorWithRed:0.55 green:0.75 blue:1.0 alpha:1]; [mark setStroke]; CGContextSetLineWidth(c, 2); NSUInteger i = 0;
     for (NSDictionary *s in stations) {
         CGFloat x = [self xForFrequency:[[s objectForKey:@"freq"] doubleValue]]; if (x < rect.origin.x - 60 || x > CGRectGetMaxX(rect) + 60) { i++; continue; }
         CGContextMoveToPoint(c, x, base); CGContextAddLineToPoint(c, x, base - 20); CGContextStrokePath(c);
-        NSString *call = [[[s objectForKey:@"name"] componentsSeparatedByString:@" "] objectAtIndex:0]; UIFont *f = [UIFont boldSystemFontOfSize:9]; CGSize sz = [call sizeWithFont:f];
-        [mark set]; [call drawAtPoint:CGPointMake(x - sz.width / 2, (i % 2 == 0) ? 2 : 12) withFont:f]; i++;   // alternate rows so neighbours don't collide
+        [mark set]; [callLetters(s) drawAtPoint:[[labels objectAtIndex:i] CGRectValue].origin withFont:[UIFont boldSystemFontOfSize:9]]; i++;
     }
+}
+@end
+
+#pragma mark - Volume
+// MPVolumeView draws the AirPlay button white for dark backgrounds; it sits in a little glass well so it shows on the metal
+@interface RDVolumeView : MPVolumeView { UIView *well; } @end
+@implementation RDVolumeView
+- (void)dealloc { [well release]; [super dealloc]; }
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    UIView *route = nil; for (UIView *v in self.subviews) if ([v isKindOfClass:[UIButton class]]) route = v;
+    if (!well) { well = [[UIView alloc] init]; well.backgroundColor = [UIColor colorWithRed:0.10 green:0.11 blue:0.13 alpha:1]; well.layer.cornerRadius = 5; well.layer.borderWidth = 1; well.layer.borderColor = [UIColor colorWithWhite:0.3 alpha:1].CGColor; well.userInteractionEnabled = NO; }
+    well.hidden = !route || route.hidden || route.alpha < 0.05;
+    if (route) { well.frame = CGRectInset(route.frame, -3, -2); [self insertSubview:well belowSubview:route]; }
 }
 @end
 
@@ -106,7 +130,7 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
         name = [[UILabel alloc] initWithFrame:CGRectMake(12, 42, w - 100, 18)]; name.font = [UIFont boldSystemFontOfSize:14]; name.textColor = [UIColor colorWithWhite:0.15 alpha:1]; name.shadowColor = [UIColor colorWithWhite:1 alpha:0.7]; name.shadowOffset = CGSizeMake(0, 1); name.backgroundColor = [UIColor clearColor]; [glass addSubview:name];
         song = [[UILabel alloc] initWithFrame:CGRectMake(12, 60, w - 100, 32)]; song.font = [UIFont systemFontOfSize:12]; song.textColor = [UIColor colorWithWhite:0.32 alpha:1]; song.shadowColor = [UIColor colorWithWhite:1 alpha:0.7]; song.shadowOffset = CGSizeMake(0, 1); song.backgroundColor = [UIColor clearColor]; song.numberOfLines = 2; [glass addSubview:song];
         button = [[UIButton buttonWithType:UIButtonTypeCustom] retain]; button.frame = CGRectMake(w - 80, 12, 66, 66); [button setBackgroundImage:knobImage(66) forState:UIControlStateNormal];
-        [button addTarget:[RDPlayer shared] action:@selector(toggle) forControlEvents:UIControlEventTouchUpInside]; [glass addSubview:button];
+        [button addTarget:self action:@selector(knob) forControlEvents:UIControlEventTouchUpInside]; [glass addSubview:button];
         spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite]; spinner.center = button.center; spinner.hidesWhenStopped = YES; [glass addSubview:spinner];
         // the dial
         dialScroll = [[UIScrollView alloc] initWithFrame:CGRectMake(8, 96, w - 16, 74)]; dialScroll.showsHorizontalScrollIndicator = NO; dialScroll.delegate = self; dialScroll.backgroundColor = [UIColor clearColor]; dialScroll.decelerationRate = UIScrollViewDecelerationRateFast; dialScroll.autoresizingMask = UIViewAutoresizingFlexibleWidth;
@@ -116,7 +140,7 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
         bandSeg = [[UISegmentedControl alloc] initWithItems:[RDStations bands]]; bandSeg.frame = CGRectMake(12, 178, w - 24, 28); bandSeg.segmentedControlStyle = UISegmentedControlStyleBar; bandSeg.tintColor = tint(1); bandSeg.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         [bandSeg addTarget:self action:@selector(bandChanged) forControlEvents:UIControlEventValueChanged]; [glass addSubview:bandSeg];
         status = [[UILabel alloc] initWithFrame:CGRectMake(12, 212, w - 24, 14)]; status.font = [UIFont boldSystemFontOfSize:10]; status.textColor = [UIColor colorWithWhite:0.35 alpha:1]; status.shadowColor = [UIColor colorWithWhite:1 alpha:0.7]; status.shadowOffset = CGSizeMake(0, 1); status.backgroundColor = [UIColor clearColor]; status.textAlignment = UITextAlignmentCenter; [glass addSubview:status];
-        MPVolumeView *vol = [[[MPVolumeView alloc] initWithFrame:CGRectMake(12, glass.bounds.size.height - 32, w - 24, 24)] autorelease]; vol.autoresizingMask = UIViewAutoresizingFlexibleWidth; [glass addSubview:vol];
+        RDVolumeView *vol = [[[RDVolumeView alloc] initWithFrame:CGRectMake(24, glass.bounds.size.height - 32, w - 48, 24)] autorelease]; vol.autoresizingMask = UIViewAutoresizingFlexibleWidth; [glass addSubview:vol];   // inset clear of the screws
         NSString *saved = [[NSUserDefaults standardUserDefaults] stringForKey:@"rd_band"]; band = [([[RDStations bands] containsObject:saved] ? saved : @"Bay Area") copy];
         bandSeg.selectedSegmentIndex = [[RDStations bands] indexOfObject:band]; [self loadBand];
         [self refresh];
@@ -129,7 +153,7 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
     dial = [[RDDialView alloc] initWithStations:[RDStations stationsInBand:band] pointsPerMHz:110];
     [dialScroll addSubview:dial]; dialScroll.contentSize = dial.bounds.size; CGFloat half = dialScroll.bounds.size.width / 2;
     dialScroll.contentInset = UIEdgeInsetsMake(0, half, 0, half);   // so the first and last frequency can sit under the needle
-    NSDictionary *cur = [[RDPlayer shared] station];
+    NSDictionary *cur = [[RDPlayer shared] station] ?: [RDStations lastStation];
     NSArray *list = [RDStations stationsInBand:band]; NSDictionary *target = [[cur objectForKey:@"band"] isEqualToString:band] ? cur : ([list count] ? [list objectAtIndex:0] : nil);
     settling = YES; dialScroll.contentOffset = CGPointMake(target ? [dial xForFrequency:[[target objectForKey:@"freq"] doubleValue]] - half : -half, 0); settling = NO;
     [self updateReadout];
@@ -141,9 +165,11 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
     for (NSDictionary *s in [RDStations stationsInBand:band]) { double d = fabs([[s objectForKey:@"freq"] doubleValue] - f); if (d < bd) { bd = d; best = s; } }
     return best;
 }
+- (NSDictionary *)current { return [[RDPlayer shared] station] ?: [RDStations lastStation] ?: [self nearestStation]; }   // what the readout shows and the knob plays
+- (void)knob { RDPlayer *p = [RDPlayer shared]; if ([p state] == RDPlaying || [p state] == RDConnecting) [p stop]; else if ([self current]) [p play:[self current]]; }
 - (void)updateReadout {
-    RDPlayer *p = [RDPlayer shared]; NSDictionary *cur = [p station];
-    if (settling || !dialScroll.dragging) { if (cur && ![[cur objectForKey:@"band"] isEqualToString:band] && [p state] != RDStopped) { freq.text = [[cur objectForKey:@"freq"] doubleValue] > 0 ? [NSString stringWithFormat:@"%.1f FM", [[cur objectForKey:@"freq"] doubleValue]] : @"WEB"; return; } }
+    NSDictionary *cur = [self current];
+    if ((settling || !dialScroll.dragging) && cur && ![[cur objectForKey:@"band"] isEqualToString:band]) { freq.text = [[cur objectForKey:@"freq"] doubleValue] > 0 ? [NSString stringWithFormat:@"%.1f FM", [[cur objectForKey:@"freq"] doubleValue]] : @"WEB"; return; }
     freq.text = [NSString stringWithFormat:@"%.1f FM", [self centerFrequency]];
 }
 - (void)scrollViewDidScroll:(UIScrollView *)sv { if (!settling) [self updateReadout]; }
@@ -163,7 +189,7 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
     [self performSelector:@selector(settled) withObject:nil afterDelay:a ? 0.35 : 0];
 }
 - (void)refresh {
-    RDPlayer *p = [RDPlayer shared]; NSDictionary *s = [p station]; RDState st = [p state];
+    RDPlayer *p = [RDPlayer shared]; NSDictionary *s = [self current]; RDState st = [p state];
     name.text = s ? [s objectForKey:@"name"] : @"Tune the dial or pick a station";
     song.text = st == RDFailed ? ([p error] ?: @"Couldn't connect.") : ([p nowPlaying] ?: (s ? [s objectForKey:@"sub"] : @""));
     song.textColor = st == RDFailed ? [UIColor colorWithRed:0.75 green:0.1 blue:0.1 alpha:1] : [UIColor colorWithWhite:0.4 alpha:1];
@@ -190,7 +216,7 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
 - (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; [tuner release]; [super dealloc]; }
 - (void)viewDidLoad {
     [super viewDidLoad];
-    tuner = [[RDTunerView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 268)]; tuner.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    tuner = [[RDTunerView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 280)]; tuner.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     self.tableView.tableHeaderView = tuner;
     [NSTimer scheduledTimerWithTimeInterval:30 target:tuner selector:@selector(refresh) userInfo:nil repeats:YES];
 }
@@ -201,6 +227,7 @@ static UIImage *knobImage(CGFloat size) {   // machined aluminium button
     if ([d objectForKey:@"rd_test_play"]) { NSInteger i = [d integerForKey:@"rd_test_play"]; [d removeObjectForKey:@"rd_test_play"]; [d synchronize]; NSDictionary *s = [[RDStations all] objectAtIndex:i]; [[RDPlayer shared] play:s]; [tuner showStation:s animated:NO]; }
     if ([d boolForKey:@"rd_test_sheet"]) { [d removeObjectForKey:@"rd_test_sheet"]; [d synchronize]; [self sleep]; }
     if ([d boolForKey:@"rd_test_add"]) { [d removeObjectForKey:@"rd_test_add"]; [d synchronize]; [self add]; }
+    if ([d objectForKey:@"rd_test_scroll"]) { CGFloat y = [d floatForKey:@"rd_test_scroll"]; [d removeObjectForKey:@"rd_test_scroll"]; [d synchronize]; self.tableView.contentOffset = CGPointMake(0, MIN(y, self.tableView.contentSize.height - self.tableView.bounds.size.height)); }
 }
 - (void)remoteControlReceivedWithEvent:(UIEvent *)e {
     RDPlayer *p = [RDPlayer shared];

@@ -42,7 +42,7 @@ static void *kStatus = &kStatus, *kMeta = &kMeta;
 - (void)stop { [meta stop]; [self teardown]; state = RDStopped; [title release]; title = nil; [self changed]; }
 - (void)toggle {
     if (state == RDPlaying || state == RDConnecting) { [self stop]; return; }
-    NSDictionary *s = station; if (!s) { NSString *last = [RDStations lastURL]; for (NSDictionary *d in [RDStations all]) if ([[d objectForKey:@"url"] isEqualToString:last]) s = d; }
+    NSDictionary *s = station ?: [RDStations lastStation];
     if (!s) s = [[RDStations all] objectAtIndex:0];
     [self play:s];
 }
