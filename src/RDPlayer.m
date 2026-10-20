@@ -50,7 +50,7 @@ static void *kStatus = &kStatus, *kMeta = &kMeta;
     if (o != item) return;
     if (ctx == kStatus) {
         if (item.status == AVPlayerItemStatusReadyToPlay) { state = RDPlaying; [self changed]; }
-        else if (item.status == AVPlayerItemStatusFailed) { state = RDFailed; [error release]; error = [([item.error localizedDescription] ?: @"The stream wouldn't start.") copy]; [self teardown]; [self changed]; }
+        else if (item.status == AVPlayerItemStatusFailed) { state = RDFailed; [error release]; error = [([item.error localizedDescription] ?: @"The stream wouldn't start.") copy]; [meta stop]; [self teardown]; [self changed]; }
     } else if (ctx == kMeta) {
         NSString *t = nil;   // Icecast "StreamTitle" arrives as timed metadata; take the first string value
         for (AVMetadataItem *m in item.timedMetadata) { if ([m.value isKindOfClass:[NSString class]] && [(NSString *)m.value length]) { t = (NSString *)m.value; if ([m.commonKey isEqualToString:AVMetadataCommonKeyTitle]) break; } }
@@ -71,6 +71,6 @@ static void *kStatus = &kStatus, *kMeta = &kMeta;
 }
 - (void)sleepFired { [sleepTimer release]; sleepTimer = nil; [sleepEnd release]; sleepEnd = nil; [self stop]; }
 // phone calls, alarms: pause and come back
-- (void)beginInterruption { if (state == RDPlaying || state == RDConnecting) { interrupted = YES; [player pause]; } }
+- (void)beginInterruption { if (state == RDPlaying || state == RDConnecting) { interrupted = YES; [player pause]; [meta stop]; } }   // play: starts the title polling again
 - (void)endInterruptionWithFlags:(NSUInteger)f { if (interrupted) { interrupted = NO; [[AVAudioSession sharedInstance] setActive:YES error:nil]; if (station) [self play:station]; } }
 @end

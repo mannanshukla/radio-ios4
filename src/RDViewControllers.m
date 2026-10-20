@@ -6,11 +6,12 @@
 
 static UIColor *tint(CGFloat a) { return [UIColor colorWithRed:0.20 green:0.36 blue:0.59 alpha:a]; }   // the icon blue
 static UIImage *glyph(BOOL play) {   // drawn, not typed: the ▶ character renders as an emoji on iOS 5
+    static UIImage *made[2] = {nil, nil}; if (made[play]) return made[play];   // drawn once; refresh asks for one on every player change
     CGFloat sz = 28; UIGraphicsBeginImageContextWithOptions(CGSizeMake(sz, sz), NO, 0); CGContextRef c = UIGraphicsGetCurrentContext();
     [tint(1) setFill];
     if (play) { CGContextMoveToPoint(c, 6, 3); CGContextAddLineToPoint(c, 26, 14); CGContextAddLineToPoint(c, 6, 25); CGContextClosePath(c); CGContextFillPath(c); }
     else CGContextFillRect(c, CGRectMake(5, 5, 18, 18));
-    UIImage *i = UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext(); return i;
+    UIImage *i = UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext(); made[play] = [i retain]; return i;
 }
 
 
@@ -123,7 +124,7 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
 - (id)initWithFrame:(CGRect)fr {
     if ((self = [super initWithFrame:fr])) {
         self.backgroundColor = [UIColor clearColor];
-        RDMetalView *glass = [[[RDMetalView alloc] initWithFrame:CGRectMake(9, 10, fr.size.width - 18, fr.size.height - 14)] autorelease]; glass.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        glass = [[RDMetalView alloc] initWithFrame:CGRectMake(9, 10, fr.size.width - 18, fr.size.height - 14)]; glass.autoresizingMask = UIViewAutoresizingFlexibleWidth;
         glass.dialWindow = CGRectMake(8, 96, fr.size.width - 18 - 16, 74);
         [self addSubview:glass]; CGFloat w = glass.bounds.size.width;
         freq = [[UILabel alloc] initWithFrame:CGRectMake(12, 8, w - 100, 34)]; freq.font = [UIFont boldSystemFontOfSize:30]; freq.textColor = [UIColor colorWithWhite:0.18 alpha:1]; freq.shadowColor = [UIColor colorWithWhite:1 alpha:0.8]; freq.shadowOffset = CGSizeMake(0, 1); freq.backgroundColor = [UIColor clearColor]; [glass addSubview:freq];
@@ -147,12 +148,23 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
     }
     return self;
 }
-- (void)dealloc { [freq release]; [name release]; [song release]; [status release]; [button release]; [spinner release]; [bandSeg release]; [dialScroll release]; [dial release]; [band release]; [super dealloc]; }
-- (void)loadBand {
+- (void)dealloc { dialScroll.delegate = nil; [freq release]; [name release]; [song release]; [status release]; [button release]; [spinner release]; [bandSeg release]; [dialScroll release]; [dial release]; [glass release]; [band release]; [super dealloc]; }
+- (void)makeDial {
     [dial removeFromSuperview]; [dial release];
     dial = [[RDDialView alloc] initWithStations:[RDStations stationsInBand:band] pointsPerMHz:110];
     [dialScroll addSubview:dial]; dialScroll.contentSize = dial.bounds.size; CGFloat half = dialScroll.bounds.size.width / 2;
     dialScroll.contentInset = UIEdgeInsetsMake(0, half, 0, half);   // so the first and last frequency can sit under the needle
+}
+// The dial is 2266 x 74 points and the face fills the panel: about 4 MB of bitmaps at 2x that nobody sees while
+// another app is in front. They go when Radio has been in the background a while and come back before it shows again.
+- (void)purgeArt { if (purged) return; purged = YES; [dial removeFromSuperview]; [dial release]; dial = nil; glass.layer.contents = nil; }
+- (void)restoreArt {
+    if (!purged) return; purged = NO; [glass setNeedsDisplay];
+    if ([[[self current] objectForKey:@"band"] isEqualToString:band]) [self loadBand]; else { [self makeDial]; [self updateReadout]; }   // a station changed from the headphones lands under the needle
+}
+- (void)loadBand {
+    if (purged) { [self updateReadout]; return; }   // restoreArt places the dial
+    [self makeDial]; CGFloat half = dialScroll.bounds.size.width / 2;
     NSDictionary *cur = [[RDPlayer shared] station] ?: [RDStations lastStation];
     NSArray *list = [RDStations stationsInBand:band]; NSDictionary *target = [[cur objectForKey:@"band"] isEqualToString:band] ? cur : ([list count] ? [list objectAtIndex:0] : nil);
     settling = YES; dialScroll.contentOffset = CGPointMake(target ? [dial xForFrequency:[[target objectForKey:@"freq"] doubleValue]] - half : -half, 0); settling = NO;
@@ -185,6 +197,7 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
 - (void)showStation:(NSDictionary *)s animated:(BOOL)a {
     NSString *b = [s objectForKey:@"band"]; if (![b length]) { [self updateReadout]; return; }
     if (![b isEqualToString:band]) { [band release]; band = [b copy]; bandSeg.selectedSegmentIndex = [[RDStations bands] indexOfObject:band]; [self loadBand]; return; }
+    if (purged) { [self updateReadout]; return; }
     settling = YES; [dialScroll setContentOffset:CGPointMake([dial xForFrequency:[[s objectForKey:@"freq"] doubleValue]] - dialScroll.bounds.size.width / 2, 0) animated:a];
     [self performSelector:@selector(settled) withObject:nil afterDelay:a ? 0.35 : 0];
 }
@@ -209,17 +222,31 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
         self.title = @"Radio";
         self.navigationItem.rightBarButtonItem = [[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(add)] autorelease];
         self.navigationItem.leftBarButtonItem = [[[UIBarButtonItem alloc] initWithTitle:@"Sleep" style:UIBarButtonItemStyleBordered target:self action:@selector(sleep)] autorelease];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(playerChanged) name:RDPlayerChanged object:nil];
+        NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+        [nc addObserver:self selector:@selector(playerChanged) name:RDPlayerChanged object:nil];
+        [nc addObserver:self selector:@selector(backgrounded) name:UIApplicationDidEnterBackgroundNotification object:nil];
+        [nc addObserver:self selector:@selector(foregrounded) name:UIApplicationWillEnterForegroundNotification object:nil];
+        [nc addObserver:self selector:@selector(becameActive) name:UIApplicationDidBecomeActiveNotification object:nil];
+        [nc addObserver:self selector:@selector(memoryWarning) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
     }
     return self;
 }
-- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; [tuner release]; [super dealloc]; }
+- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; [tuner release]; [shown release]; [super dealloc]; }
 - (void)viewDidLoad {
     [super viewDidLoad];
     tuner = [[RDTunerView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 280)]; tuner.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     self.tableView.tableHeaderView = tuner;
-    [NSTimer scheduledTimerWithTimeInterval:30 target:tuner selector:@selector(refresh) userInfo:nil repeats:YES];
+    [NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(tick) userInfo:nil repeats:YES];
 }
+// While another app is in front nobody sees the panel or the list: player changes just mark them stale, and the
+// bitmaps go once the switcher snapshot has been taken (it is taken right after entering the background).
+- (BOOL)onScreen { return [UIApplication sharedApplication].applicationState == UIApplicationStateActive; }
+- (void)tick { if ([self onScreen]) [tuner refresh]; }   // the sleep countdown
+- (void)backgrounded { [self performSelector:@selector(purge) withObject:nil afterDelay:5]; }
+- (void)purge { if ([UIApplication sharedApplication].applicationState == UIApplicationStateBackground) [tuner purgeArt]; }
+- (void)memoryWarning { [self purge]; }
+- (void)foregrounded { [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(purge) object:nil]; [tuner restoreArt]; }
+- (void)becameActive { if (stale) { stale = NO; [self playerChanged]; } }
 - (BOOL)canBecomeFirstResponder { return YES; }
 - (void)viewDidAppear:(BOOL)a {
     [super viewDidAppear:a]; [self becomeFirstResponder]; [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
@@ -244,7 +271,13 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
     NSArray *all = [RDStations all]; NSDictionary *cur = [[RDPlayer shared] station]; NSInteger i = cur ? [all indexOfObject:cur] : NSNotFound; if (i == NSNotFound) i = 0; else i = (i + by + [all count]) % [all count];
     NSDictionary *s = [all objectAtIndex:i]; [[RDPlayer shared] play:s]; [tuner showStation:s animated:YES];
 }
-- (void)playerChanged { [tuner refresh]; [self.tableView reloadData]; }
+- (void)playerChanged {
+    if (![self onScreen]) { stale = YES; return; }
+    [tuner refresh];
+    RDPlayer *p = [RDPlayer shared]; NSString *now = [NSString stringWithFormat:@"%d %@", [p state], [[p station] objectForKey:@"url"]];
+    if ([now isEqualToString:shown]) return;   // a new song title changes nothing in the list
+    [shown release]; shown = [now copy]; [self.tableView reloadData];
+}
 - (void)add { RDAddViewController *v = [[RDAddViewController alloc] init]; UINavigationController *n = [[UINavigationController alloc] initWithRootViewController:v]; n.navigationBar.tintColor = self.navigationController.navigationBar.tintColor; [self presentModalViewController:n animated:YES]; [n release]; [v release]; }
 - (void)sleep {
     UIActionSheet *a = [[UIActionSheet alloc] initWithTitle:@"Stop playing in" delegate:self cancelButtonTitle:@"Cancel" destructiveButtonTitle:[[RDPlayer shared] sleepEnd] ? @"Turn off sleep timer" : nil otherButtonTitles:@"15 minutes", @"30 minutes", @"1 hour", @"2 hours", nil];
@@ -297,7 +330,7 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
     }
     return self;
 }
-- (void)dealloc { [nameField release]; [urlField release]; [super dealloc]; }
+- (void)dealloc { nameField.delegate = nil; urlField.delegate = nil; [nameField release]; [urlField release]; [super dealloc]; }
 - (UITextField *)field:(NSString *)ph { UITextField *f = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 280, 30)]; f.placeholder = ph; f.font = [UIFont systemFontOfSize:16]; f.delegate = self; f.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter; f.clearButtonMode = UITextFieldViewModeWhileEditing; f.autocapitalizationType = UITextAutocapitalizationTypeNone; f.autocorrectionType = UITextAutocorrectionTypeNo; return f; }
 - (void)viewDidLoad { [super viewDidLoad]; nameField = [self field:@"Station name"]; nameField.autocapitalizationType = UITextAutocapitalizationTypeWords; urlField = [self field:@"http://stream.example.com/live.mp3"]; urlField.keyboardType = UIKeyboardTypeURL; urlField.returnKeyType = UIReturnKeyDone; }
 - (void)viewDidAppear:(BOOL)a { [super viewDidAppear:a]; [nameField becomeFirstResponder]; }
