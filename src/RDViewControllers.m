@@ -219,7 +219,7 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
 @implementation RDStationsViewController
 - (id)init {
     if ((self = [super initWithStyle:UITableViewStyleGrouped])) {
-        self.title = @"Radio";
+        self.title = @"Radio"; purgeTask = UIBackgroundTaskInvalid;
         self.navigationItem.rightBarButtonItem = [[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(add)] autorelease];
         self.navigationItem.leftBarButtonItem = [[[UIBarButtonItem alloc] initWithTitle:@"Sleep" style:UIBarButtonItemStyleBordered target:self action:@selector(sleep)] autorelease];
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
@@ -231,21 +231,33 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
     }
     return self;
 }
-- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; [tuner release]; [shown release]; [super dealloc]; }
+- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; [ticker invalidate]; [ticker release]; [tuner release]; [shown release]; [super dealloc]; }
 - (void)viewDidLoad {
     [super viewDidLoad];
     tuner = [[RDTunerView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 280)]; tuner.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     self.tableView.tableHeaderView = tuner;
-    [NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(tick) userInfo:nil repeats:YES];
+    [self startTicker];
 }
+- (void)viewDidUnload { [super viewDidUnload]; [tuner release]; tuner = nil; }   // unloaded under the Add screen on a memory warning; viewDidLoad builds a new panel
+- (void)startTicker { [ticker invalidate]; [ticker release]; ticker = [[NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(tick) userInfo:nil repeats:YES] retain]; }   // one timer, even when the view loads again
+- (void)stopTicker { [ticker invalidate]; [ticker release]; ticker = nil; }
 // While another app is in front nobody sees the panel or the list: player changes just mark them stale, and the
 // bitmaps go once the switcher snapshot has been taken (it is taken right after entering the background).
 - (BOOL)onScreen { return [UIApplication sharedApplication].applicationState == UIApplicationStateActive; }
 - (void)tick { if ([self onScreen]) [tuner refresh]; }   // the sleep countdown
-- (void)backgrounded { [self performSelector:@selector(purge) withObject:nil afterDelay:5]; }
-- (void)purge { if ([UIApplication sharedApplication].applicationState == UIApplicationStateBackground) [tuner purgeArt]; }
+// Not playing, Radio is suspended as soon as it leaves the screen, before a delayed purge could run: a background task keeps it up for those 5 s.
+- (void)backgrounded {
+    [self stopTicker]; [self endPurgeTask];
+    purgeTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{ [self purge]; }];
+    [self performSelector:@selector(purge) withObject:nil afterDelay:5];
+}
+- (void)endPurgeTask {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(purge) object:nil];
+    if (purgeTask != UIBackgroundTaskInvalid) { [[UIApplication sharedApplication] endBackgroundTask:purgeTask]; purgeTask = UIBackgroundTaskInvalid; }
+}
+- (void)purge { if ([UIApplication sharedApplication].applicationState == UIApplicationStateBackground) [tuner purgeArt]; [self endPurgeTask]; }
 - (void)memoryWarning { [self purge]; }
-- (void)foregrounded { [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(purge) object:nil]; [tuner restoreArt]; }
+- (void)foregrounded { [self endPurgeTask]; [tuner restoreArt]; if ([self isViewLoaded]) [self startTicker]; }
 - (void)becameActive { if (stale) { stale = NO; [self playerChanged]; } }
 - (BOOL)canBecomeFirstResponder { return YES; }
 - (void)viewDidAppear:(BOOL)a {
@@ -333,6 +345,7 @@ static NSString *callLetters(NSDictionary *s) { return [[[s objectForKey:@"name"
 - (void)dealloc { nameField.delegate = nil; urlField.delegate = nil; [nameField release]; [urlField release]; [super dealloc]; }
 - (UITextField *)field:(NSString *)ph { UITextField *f = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 280, 30)]; f.placeholder = ph; f.font = [UIFont systemFontOfSize:16]; f.delegate = self; f.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter; f.clearButtonMode = UITextFieldViewModeWhileEditing; f.autocapitalizationType = UITextAutocapitalizationTypeNone; f.autocorrectionType = UITextAutocorrectionTypeNo; return f; }
 - (void)viewDidLoad { [super viewDidLoad]; nameField = [self field:@"Station name"]; nameField.autocapitalizationType = UITextAutocapitalizationTypeWords; urlField = [self field:@"http://stream.example.com/live.mp3"]; urlField.keyboardType = UIKeyboardTypeURL; urlField.returnKeyType = UIReturnKeyDone; }
+- (void)viewDidUnload { [super viewDidUnload]; nameField.delegate = nil; urlField.delegate = nil; [nameField release]; nameField = nil; [urlField release]; urlField = nil; }
 - (void)viewDidAppear:(BOOL)a { [super viewDidAppear:a]; [nameField becomeFirstResponder]; }
 - (BOOL)textFieldShouldReturn:(UITextField *)f { if (f == nameField) [urlField becomeFirstResponder]; else [self save]; return YES; }
 - (void)cancel { [self dismissModalViewControllerAnimated:YES]; }

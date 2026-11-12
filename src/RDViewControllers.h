@@ -10,7 +10,7 @@
 - (void)showStation:(NSDictionary *)s animated:(BOOL)a;   // move the dial to a station (switches band if needed)
 - (void)purgeArt; - (void)restoreArt;   // drop the dial and metal bitmaps while playing in the background; draw them again on the way back
 @end
-@interface RDStationsViewController : UITableViewController <UIActionSheetDelegate> { RDTunerView *tuner; BOOL stale; NSString *shown; }
+@interface RDStationsViewController : UITableViewController <UIActionSheetDelegate> { RDTunerView *tuner; BOOL stale; NSString *shown; NSTimer *ticker; UIBackgroundTaskIdentifier purgeTask; }
 @end
 @interface RDAddViewController : UITableViewController <UITextFieldDelegate> { UITextField *nameField, *urlField; }
 @end
